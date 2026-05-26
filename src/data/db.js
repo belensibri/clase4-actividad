@@ -31,7 +31,8 @@ const db = {
       estado: "programada",
       departamento: "Medicina Interna"
     }
-  ]
+  ],
+  historial: []
 };
 
 module.exports = db;

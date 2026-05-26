@@ -13,9 +13,53 @@ const medicoSchema = z.object({
   estado: z.enum(['activo', 'guardia', 'fuera de servicio']).optional(),
 });
 
+// Helper para convertir "8:00 AM" a minutos (ej: 480)
+const timeToMinutes = (timeStr) => {
+  if (!timeStr) return null;
+  const [time, modifier] = timeStr.split(' ');
+  let [hours, minutes] = time.split(':').map(Number);
+  if (modifier === 'PM' && hours < 12) hours += 12;
+  if (modifier === 'AM' && hours === 12) hours = 0;
+  return hours * 60 + minutes;
+};
+
 // GET /medicos
 router.get('/', (req, res) => {
-  res.status(200).json(db.medicos);
+  const { especialidad, horaDesde, horaHasta } = req.query;
+  
+  let resultados = db.medicos.filter(m => m.estado !== 'fuera de servicio');
+
+  // Si no hay query params, solo retornar activos
+  if (!especialidad && !horaDesde && !horaHasta) {
+    resultados = resultados.filter(m => m.estado === 'activo');
+    return res.status(200).json(resultados);
+  }
+
+  if (especialidad) {
+    resultados = resultados.filter(m => 
+      m.especialidad.toLowerCase().includes(especialidad.toLowerCase())
+    );
+  }
+
+  if (horaDesde || horaHasta) {
+    const desdeMin = timeToMinutes(horaDesde);
+    const hastaMin = timeToMinutes(horaHasta);
+
+    resultados = resultados.filter(m => {
+      if (!m.horarioAtencion) return false;
+      const [startStr, endStr] = m.horarioAtencion.split(' - ');
+      const medStart = timeToMinutes(startStr);
+      const medEnd = timeToMinutes(endStr);
+
+      let cumple = true;
+      if (desdeMin !== null) cumple = cumple && (medStart <= desdeMin);
+      if (hastaMin !== null) cumple = cumple && (medEnd >= hastaMin);
+      
+      return cumple;
+    });
+  }
+
+  res.status(200).json(resultados);
 });
 
 // GET /medicos/:id
